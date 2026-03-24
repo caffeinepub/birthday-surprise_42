@@ -1,26 +1,25 @@
 # Birthday Surprise
 
 ## Current State
-Customizations (letter paragraphs and memories/photos) are saved only to browser localStorage. When the live link is opened on another device, default placeholder content is shown instead of the personalized content.
+The app has a Motoko backend with variables for boyfriendName, birthdayMonth, birthdayDay, letter paragraphs, and memories (with imageData as base64 text). All variables are `var` (not `stable`), meaning data is erased every time the canister is upgraded/redeployed. Photos are stored as base64 strings directly in the backend, which can also exceed message size limits.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Backend storage for letter paragraphs (4 text fields)
-- Backend storage for memories (up to 6 entries with base64 image data + caption)
-- Backend functions: setLetter, getLetter, setMemories, getMemories
+- Make all backend variables `stable` so they survive redeployments
+- Add blob-storage integration for photo uploads in the Memories customize panel
+- Backend APIs: uploadMemoryPhoto(blobId, caption) and getMemoryPhotos()
 
 ### Modify
-- CustomizeModal: save letter and memories to backend instead of localStorage
-- LetterPage: load letter paragraphs from backend (fallback to defaults)
-- MemoriesPage: load memories from backend (fallback to defaults)
+- Backend: change `var` to `stable var` for all state variables
+- Backend: replace imageData:Text memory storage with blobId references to blob-storage
+- Frontend CustomizeModal: use blob-storage upload API for photo slots instead of base64 FileReader
+- Frontend MemoriesPage: load photos via blob-storage URLs instead of base64 data
 
 ### Remove
-- localStorage usage for letter and memories
+- Base64 image data storage in backend memories array
 
 ## Implementation Plan
-1. Update main.mo with letter and memories storage + getter/setter functions
-2. Regenerate backend.d.ts
-3. Update CustomizeModal.tsx to call backend on save
-4. Update LetterPage.tsx to fetch from backend
-5. Update MemoriesPage.tsx to fetch from backend
+1. Rewrite backend with stable variables and blob-storage-based memory photo storage
+2. Update CustomizeModal to upload files via blob-storage and store blob IDs + captions
+3. Update MemoriesPage to load photos via blob-storage HTTP URLs

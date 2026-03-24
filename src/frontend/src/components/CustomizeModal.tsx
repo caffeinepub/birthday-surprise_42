@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import type { backendInterface } from "../backend";
+import { ExternalBlob, type backendInterface } from "../backend";
 
 interface Props {
   actor: backendInterface | null;
@@ -48,6 +48,18 @@ const SLOT_KEYS = [
 
 type Tab = "details" | "letter" | "memories";
 
+interface MemorySlot {
+  image: ExternalBlob | null;
+  previewSrc: string;
+  caption: string;
+}
+
+const EMPTY_SLOTS: MemorySlot[] = Array.from({ length: 6 }, () => ({
+  image: null,
+  previewSrc: "",
+  caption: "",
+}));
+
 export default function CustomizeModal({
   actor,
   currentName,
@@ -72,17 +84,15 @@ export default function CustomizeModal({
   const [letterSaved, setLetterSaved] = useState(false);
 
   // Memories tab state
-  const [memories, setMemories] = useState<{ src: string; caption: string }[]>(
-    Array.from({ length: 6 }, () => ({ src: "", caption: "" })),
-  );
+  const [memories, setMemories] = useState<MemorySlot[]>(EMPTY_SLOTS);
   const [memoriesSaving, setMemoriesSaving] = useState(false);
   const [memoriesSaved, setMemoriesSaved] = useState(false);
   const fileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Load letter and memories from backend, fall back to localStorage
+  // Load letter and memories from backend
   useEffect(() => {
     if (!actor) {
-      // Fall back to localStorage while actor loads
+      // Fall back to localStorage for letter while actor loads
       try {
         const stored = localStorage.getItem("birthday_letter");
         if (stored) {
@@ -92,23 +102,10 @@ export default function CustomizeModal({
           }
         }
       } catch {}
-      try {
-        const stored = localStorage.getItem("birthday_memories");
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed)) {
-            const filled = Array.from(
-              { length: 6 },
-              (_, i) => parsed[i] || { src: "", caption: "" },
-            );
-            setMemories(filled);
-          }
-        }
-      } catch {}
       return;
     }
 
-    // Load from backend
+    // Load letter from backend
     actor
       .getLetter()
       .then((paragraphs) => {
@@ -120,7 +117,6 @@ export default function CustomizeModal({
           setLetterParagraphs(paragraphs);
           localStorage.setItem("birthday_letter", JSON.stringify(paragraphs));
         } else {
-          // Fall back to localStorage
           try {
             const stored = localStorage.getItem("birthday_letter");
             if (stored) {
@@ -134,32 +130,21 @@ export default function CustomizeModal({
       })
       .catch(() => {});
 
+    // Load memories from backend using ExternalBlob.getDirectURL()
     actor
       .getMemories()
       .then((items) => {
-        if (Array.isArray(items) && items.length > 0 && items[0]?.imageData) {
+        if (Array.isArray(items) && items.length > 0) {
           const mapped = Array.from({ length: 6 }, (_, i) =>
             items[i]
-              ? { src: items[i].imageData, caption: items[i].caption }
-              : { src: "", caption: "" },
+              ? {
+                  image: items[i].image,
+                  previewSrc: items[i].image.getDirectURL(),
+                  caption: items[i].caption,
+                }
+              : { image: null, previewSrc: "", caption: "" },
           );
           setMemories(mapped);
-          localStorage.setItem("birthday_memories", JSON.stringify(mapped));
-        } else {
-          // Fall back to localStorage
-          try {
-            const stored = localStorage.getItem("birthday_memories");
-            if (stored) {
-              const parsed = JSON.parse(stored);
-              if (Array.isArray(parsed)) {
-                const filled = Array.from(
-                  { length: 6 },
-                  (_, i) => parsed[i] || { src: "", caption: "" },
-                );
-                setMemories(filled);
-              }
-            }
-          } catch {}
         }
       })
       .catch(() => {});
@@ -204,11 +189,10 @@ export default function CustomizeModal({
     if (!actor) return;
     setMemoriesSaving(true);
     try {
-      await actor.setMemories(
-        memories.map((m) => ({ imageData: m.src, caption: m.caption })),
-      );
-      // Keep localStorage as a fast cache
-      localStorage.setItem("birthday_memories", JSON.stringify(memories));
+      const toSave = memories
+        .filter((m) => m.image !== null)
+        .map((m) => ({ image: m.image!, caption: m.caption }));
+      await actor.setMemories(toSave);
       setMemoriesSaved(true);
       setTimeout(() => setMemoriesSaved(false), 2000);
     } catch (e) {
@@ -218,15 +202,13 @@ export default function CustomizeModal({
     }
   };
 
-  const handleFileChange = (index: number, file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const src = e.target?.result as string;
-      setMemories((prev) =>
-        prev.map((m, i) => (i === index ? { ...m, src } : m)),
-      );
-    };
-    reader.readAsDataURL(file);
+  const handleFileChange = async (index: number, file: File) => {
+    const previewSrc = URL.createObjectURL(file);
+    const arrayBuffer = await file.arrayBuffer();
+    const blob = ExternalBlob.fromBytes(new Uint8Array(arrayBuffer));
+    setMemories((prev) =>
+      prev.map((m, i) => (i === index ? { ...m, image: blob, previewSrc } : m)),
+    );
   };
 
   const inputStyle: React.CSSProperties = {
@@ -605,14 +587,16 @@ export default function CustomizeModal({
                     background: "#FFF8F5",
                   }}
                 >
-                  {/* Upload area - file input covers the whole zone */}
+                  {/* Upload area */}
                   <label
                     htmlFor={`mem-upload-${slotKey}`}
                     style={
                       {
                         position: "relative",
                         aspectRatio: "4/3",
-                        background: memories[i]?.src ? "#000" : "#F4EBE4",
+                        background: memories[i]?.previewSrc
+                          ? "#000"
+                          : "#F4EBE4",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -621,9 +605,9 @@ export default function CustomizeModal({
                       } as React.CSSProperties
                     }
                   >
-                    {memories[i]?.src ? (
+                    {memories[i]?.previewSrc ? (
                       <img
-                        src={memories[i].src}
+                        src={memories[i].previewSrc}
                         alt={`Memory ${i + 1}`}
                         style={{
                           width: "100%",

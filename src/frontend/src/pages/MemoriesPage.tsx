@@ -47,106 +47,25 @@ export default function MemoriesPage({ isMuted, onToggleMute, actor }: Props) {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
-    if (!actor) {
-      // Fall back to localStorage
-      try {
-        const stored = localStorage.getItem("birthday_memories");
-        if (stored) {
-          const parsed: { src: string; caption: string }[] = JSON.parse(stored);
-          if (Array.isArray(parsed)) {
-            const filled = parsed
-              .filter((m) => m.src)
-              .map((m, i) => ({
-                id: `mem-custom-${i + 1}`,
-                src: m.src,
-                caption: m.caption || `Memory ${i + 1}`,
-              }));
-            if (filled.length > 0) setMemories(filled);
-          }
-        }
-      } catch {}
-      return;
-    }
+    if (!actor) return;
 
     actor
       .getMemories()
       .then((items) => {
-        if (Array.isArray(items) && items.length > 0 && items[0]?.imageData) {
+        if (Array.isArray(items) && items.length > 0) {
           const mapped = items
-            .filter((m) => m.imageData)
+            .filter((m) => m.image)
             .map((m, i) => ({
               id: `mem-custom-${i + 1}`,
-              src: m.imageData,
+              src: m.image.getDirectURL(),
               caption: m.caption || `Memory ${i + 1}`,
             }));
           if (mapped.length > 0) {
             setMemories(mapped);
-            localStorage.setItem(
-              "birthday_memories",
-              JSON.stringify(
-                mapped.map((m) => ({ src: m.src, caption: m.caption })),
-              ),
-            );
-          } else {
-            // Fall back to localStorage
-            try {
-              const stored = localStorage.getItem("birthday_memories");
-              if (stored) {
-                const parsed: { src: string; caption: string }[] =
-                  JSON.parse(stored);
-                if (Array.isArray(parsed)) {
-                  const filled = parsed
-                    .filter((m) => m.src)
-                    .map((m, i) => ({
-                      id: `mem-custom-${i + 1}`,
-                      src: m.src,
-                      caption: m.caption || `Memory ${i + 1}`,
-                    }));
-                  if (filled.length > 0) setMemories(filled);
-                }
-              }
-            } catch {}
           }
-        } else {
-          // Fall back to localStorage
-          try {
-            const stored = localStorage.getItem("birthday_memories");
-            if (stored) {
-              const parsed: { src: string; caption: string }[] =
-                JSON.parse(stored);
-              if (Array.isArray(parsed)) {
-                const filled = parsed
-                  .filter((m) => m.src)
-                  .map((m, i) => ({
-                    id: `mem-custom-${i + 1}`,
-                    src: m.src,
-                    caption: m.caption || `Memory ${i + 1}`,
-                  }));
-                if (filled.length > 0) setMemories(filled);
-              }
-            }
-          } catch {}
         }
       })
-      .catch(() => {
-        try {
-          const stored = localStorage.getItem("birthday_memories");
-          if (stored) {
-            const parsed: { src: string; caption: string }[] =
-              JSON.parse(stored);
-            if (Array.isArray(parsed)) {
-              const filled = parsed
-                .filter((m) => m.src)
-                .map((m, i) => ({
-                  id: `mem-custom-${i + 1}`,
-                  src: m.src,
-                  caption: m.caption || `Memory ${i + 1}`,
-                }));
-              if (filled.length > 0) setMemories(filled);
-            }
-          }
-        } catch {}
-      });
+      .catch(() => {});
   }, [actor]);
 
   useEffect(() => {

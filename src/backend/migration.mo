@@ -1,6 +1,13 @@
+import Storage "blob-storage/Storage";
+
 module {
-  type Memory = {
+  type OldMemory = {
     imageData : Text;
+    caption : Text;
+  };
+
+  type NewMemory = {
+    image : Storage.ExternalBlob;
     caption : Text;
   };
 
@@ -8,6 +15,8 @@ module {
     boyfriendName : Text;
     birthdayMonth : Nat;
     birthdayDay : Nat;
+    letter : [Text];
+    memories : [OldMemory];
   };
 
   type NewActor = {
@@ -15,10 +24,10 @@ module {
     birthdayMonth : Nat;
     birthdayDay : Nat;
     letter : [Text];
-    memories : [Memory];
+    memories : [NewMemory];
   };
 
   public func run(old : OldActor) : NewActor {
-    { old with letter = [""]; memories = [] };
+    { old with memories = [] };
   };
 };
